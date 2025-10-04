@@ -13,14 +13,14 @@ MONGO_URI = os.getenv("MONGO_URI")
 DB_NAME = os.getenv("DB_NAME", "meubanco")
 COLLECTION_NAME = os.getenv("COLLECTION_NAME", "api")
 
-# Conexão MongoDB
+
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
 collection = db[COLLECTION_NAME]
 
 app = FastAPI(title="RFID Backend com MongoDB Atlas")
 
-# Modelo de entrada
+
 class RfidPayload(BaseModel):
     uid: str = Field(..., description="UID do cartão RFID")
     tag_type: Optional[str] = None
@@ -28,7 +28,7 @@ class RfidPayload(BaseModel):
     timestamp: Optional[str] = None
     extra: Optional[dict] = None
 
-# Middleware de API Key
+
 def verify_api_key(x_api_key: Optional[str]):
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API Key")
@@ -51,5 +51,5 @@ async def latest(n: int = 10, x_api_key: Optional[str] = Header(None)):
 
     docs = list(collection.find().sort("_id", -1).limit(n))
     for d in docs:
-        d["_id"] = str(d["_id"])  # converter ObjectId para string
+        d["_id"] = str(d["_id"])  
     return docs
