@@ -6,11 +6,11 @@
 #include <HTTPClient.h>   
 #include <ArduinoJson.h>  
 
-const char* ssid = "Status";
-const char* password = "casadosparasempre";
+const char* ssid = ssid;
+const char* password = password;
 
 const char* backendURL = "https://projeto-integrador-f86b.onrender.com/api/rfid";  
-const char* apiKey     = apiKey    
+const char* apiKey     = apiKey:   
 
 #define SS_PIN 10   // SDA
 #define RST_PIN 9   // RST
