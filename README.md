@@ -6,7 +6,7 @@ A problemática central deste projeto parte da constatação de que pessoas com 
 
 Nossa solução busca automatizar essa identificação, tornando o processo mais confortável tanto para a pessoa com deficiência quanto para o motorista. Ao ler o cartão do passageiro, o sistema notifica o motorista instantaneamente por meio de um alerta visual na parada, informando rapidamente as necessidades da pessoa com deficiência. O projeto é inclusivo e melhora a experiência no transporte público, desde a espera no ponto (com informações sobre tempo de chegada e linha do veículo) até o embarque, contando ainda com um sinal sonoro para auxiliar pessoas com deficiência visual na localização do dispositivo.
 
-## Objetivos da Pesquisa
+## Objetivos
 
 ### Objetivo Geral
 
