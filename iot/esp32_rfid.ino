@@ -6,28 +6,38 @@
 #include <HTTPClient.h>   
 #include <ArduinoJson.h>  
 
-const char* ssid = ssid;
-const char* password = password;
+
+const char* ssid = "SENAC-Mesh";
+const char* password = "09080706";
+
+#define APP_KEY    "3e98388a-4ffc-4f10-a0c1-246c9046d27b"
+#define APP_SECRET "f6ea6c00-9a77-495b-bd70-9ddf67e60222-ba1cba85-958f-49c1-a506-ce767a469de5"
+#define DEVICE_ID  "68df39b8359ccc32ce0a8c45"
+
 
 const char* backendURL = "https://projeto-integrador-f86b.onrender.com/api/rfid";  
-const char* apiKey     = apiKey:   
+const char* apiKey     = "abc123meuTokenSuperSecreto!";        
 
-#define SS_PIN 10   // SDA
-#define RST_PIN 9   // RST
+
+#define SS_PIN 10   
+#define RST_PIN 9   
 #define MOSI 6
 #define MISO 5
 #define SCK  4
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
+
 String lastUid = "";
 unsigned long lastTrigger = 0;
 const unsigned long triggerDebounceMs = 3000;
 
+// Callback Alexa
 bool onPowerState(const String &deviceId, bool &state) {
   Serial.printf("[SinricPro] Device %s -> %s\n", deviceId.c_str(), state ? "ON" : "OFF");
   return true;
 }
+
 
 void sendToBackend(String uid) {
   if (WiFi.status() == WL_CONNECTED) {
@@ -61,7 +71,7 @@ void setup() {
   Serial.begin(115200);
   delay(100);
 
-
+  
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi");
   while (WiFi.status() != WL_CONNECTED) {
@@ -70,10 +80,12 @@ void setup() {
   }
   Serial.println("\nWiFi connected!");
 
+  
   SinricProSwitch &mySwitch = SinricPro[DEVICE_ID];
   mySwitch.onPowerState(onPowerState);
   SinricPro.begin(APP_KEY, APP_SECRET);
 
+  
   SPI.begin(SCK, MISO, MOSI, SS_PIN);
   mfrc522.PCD_Init();
   Serial.println("Approach your RFID tag...");
@@ -98,12 +110,12 @@ void loop() {
       lastUid = uidStr;
       lastTrigger = now;
 
-     
+    
       SinricProSwitch &sw = SinricPro[DEVICE_ID];
       bool sentOn = sw.sendPowerStateEvent(true);
       if(sentOn) Serial.println("Event 'On' sent to SinricPro");
 
-      
+    
       sendToBackend(uidStr);
     }
 
