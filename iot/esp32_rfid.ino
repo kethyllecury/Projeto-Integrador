@@ -6,7 +6,6 @@
 #include <HTTPClient.h>   
 #include <ArduinoJson.h>  
 
-
 const char* ssid = "SENAC-Mesh";
 const char* password = "09080706";
 
@@ -14,19 +13,17 @@ const char* password = "09080706";
 #define APP_SECRET "f6ea6c00-9a77-495b-bd70-9ddf67e60222-ba1cba85-958f-49c1-a506-ce767a469de5"
 #define DEVICE_ID  "68df39b8359ccc32ce0a8c45"
 
-
 const char* backendURL = "https://projeto-integrador-f86b.onrender.com/api/rfid";  
 const char* apiKey     = "abc123meuTokenSuperSecreto!";        
-
 
 #define SS_PIN 10   
 #define RST_PIN 9   
 #define MOSI 6
 #define MISO 5
 #define SCK  4
-
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
+#define LED_PIN 2  
 
 String lastUid = "";
 unsigned long lastTrigger = 0;
@@ -37,7 +34,6 @@ bool onPowerState(const String &deviceId, bool &state) {
   Serial.printf("[SinricPro] Device %s -> %s\n", deviceId.c_str(), state ? "ON" : "OFF");
   return true;
 }
-
 
 void sendToBackend(String uid) {
   if (WiFi.status() == WL_CONNECTED) {
@@ -71,24 +67,36 @@ void setup() {
   Serial.begin(115200);
   delay(100);
 
-  
-  WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi connected!");
+  Serial.println("Conectando ao WiFi...");
+WiFi.begin(ssid, password);
 
-  
+unsigned long startAttemptTime = millis();
+
+while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 20000) {
+  delay(500);
+  Serial.print(".");
+}
+
+if (WiFi.status() == WL_CONNECTED) {
+  Serial.println("\n WiFi conectado com sucesso!");
+  Serial.print("Endereço IP: ");
+  Serial.println(WiFi.localIP());
+} else {
+  Serial.println("\n Falha ao conectar ao WiFi.");
+  Serial.println("Verifique SSID e senha, ou teste com hotspot do celular.");
+}
+
+
   SinricProSwitch &mySwitch = SinricPro[DEVICE_ID];
   mySwitch.onPowerState(onPowerState);
   SinricPro.begin(APP_KEY, APP_SECRET);
 
-  
   SPI.begin(SCK, MISO, MOSI, SS_PIN);
   mfrc522.PCD_Init();
   Serial.println("Approach your RFID tag...");
+
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
 }
 
 void loop() {
@@ -110,18 +118,22 @@ void loop() {
       lastUid = uidStr;
       lastTrigger = now;
 
-    
       SinricProSwitch &sw = SinricPro[DEVICE_ID];
       bool sentOn = sw.sendPowerStateEvent(true);
       if(sentOn) Serial.println("Event 'On' sent to SinricPro");
 
-    
       sendToBackend(uidStr);
+
+      digitalWrite(LED_PIN, HIGH);
+      Serial.println("LED ON (10s)");
+      delay(10000);
+      digitalWrite(LED_PIN, LOW);
+      Serial.println("LED OFF");
     }
 
     mfrc522.PICC_HaltA();
     mfrc522.PCD_StopCrypto1();
   }
 
-  delay(50);
+  delay(50);
 }
