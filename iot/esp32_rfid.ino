@@ -3,89 +3,135 @@
 #include <MFRC522.h>
 #include <SinricPro.h>
 #include <SinricProSwitch.h>
-#include <HTTPClient.h>   
-#include <ArduinoJson.h>  
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
 
-const char* ssid = "SENAC-Mesh";
-const char* password = "09080706";
 
-#define APP_KEY    "3e98388a-4ffc-4f10-a0c1-246c9046d27b"
-#define APP_SECRET "f6ea6c00-9a77-495b-bd70-9ddf67e60222-ba1cba85-958f-49c1-a506-ce767a469de5"
-#define DEVICE_ID  "68df39b8359ccc32ce0a8c45"
+// =======================
+// WIFI
+// =======================
+const char* ssid = ssid;
+const char* password = password;
 
-const char* backendURL = "https://projeto-integrador-f86b.onrender.com/api/rfid";  
-const char* apiKey     = "abc123meuTokenSuperSecreto!";        
+// =======================
+// BACKEND
+// =======================
+const char* backendURL = "https://projeto-integrador-f86b.onrender.com/api/rfid";
+const char* apiKey = apiKey;
 
-#define SS_PIN 10   
-#define RST_PIN 9   
+// =======================
+// RFID PINS
+// =======================
+#define SS_PIN 7
+#define RST_PIN 10
 #define MOSI 6
 #define MISO 5
-#define SCK  4
+#define SCK 4
+
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
-#define LED_PIN 2  
+// =======================
+// SINAIS
+// =======================
+#define LED_PIN 2
+#define BUZZER_PIN 3
 
 String lastUid = "";
 unsigned long lastTrigger = 0;
 const unsigned long triggerDebounceMs = 3000;
 
-// Callback Alexa
-bool onPowerState(const String &deviceId, bool &state) {
-  Serial.printf("[SinricPro] Device %s -> %s\n", deviceId.c_str(), state ? "ON" : "OFF");
+// =======================
+// BUZZER
+// =======================
+unsigned long buzzerLast = 0;
+const unsigned long buzzerOnTime = 1000;
+const unsigned long buzzerOffTime = 1000;
+bool buzzerState = false;
+
+// ============================================================
+// QA BÁSICO (só para evitar enviar lixo ao backend)
+// ============================================================
+bool isHex(String s) {
+  for (int i = 0; i < s.length(); i++) {
+    if (!isxdigit(s.charAt(i))) return false;
+  }
   return true;
 }
 
-void sendToBackend(String uid) {
-  if (WiFi.status() == WL_CONNECTED) {
-    HTTPClient http;
-    http.begin(backendURL);
-    http.addHeader("Content-Type", "application/json");
-    http.addHeader("x-api-key", apiKey);
-
-    StaticJsonDocument<256> doc;
-    doc["uid"] = uid;
-    doc["tag_type"] = "MIFARE";
-    doc["rssi"] = -45; 
-    String body;
-    serializeJson(doc, body);
-
-    int httpResponseCode = http.POST(body);
-
-    if (httpResponseCode > 0) {
-      Serial.printf("Backend response (%d): %s\n", httpResponseCode, http.getString().c_str());
-    } else {
-      Serial.printf("Error sending to backend: %s\n", http.errorToString(httpResponseCode).c_str());
-    }
-
-    http.end();
-  } else {
-    Serial.println("WiFi not connected");
-  }
+bool validateUid(String uid) {
+  if (uid.length() < 8 || uid.length() > 16) return false;
+  if (!isHex(uid)) return false;
+  return true;
 }
 
+// ============================================================
+// CALLBACK DO SINRIC
+// ============================================================
+bool onPowerState(const String &deviceId, bool &state) {
+  Serial.printf("[SinricPro] Dispositivo %s -> %s\n",
+                deviceId.c_str(), state ? "ON" : "OFF");
+  return true;
+}
+
+// ============================================================
+// ENVIO AO BACKEND
+// ============================================================
+void sendToBackend(String uid) {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[BACKEND] WiFi não conectado!");
+    return;
+  }
+
+  HTTPClient http;
+  http.begin(backendURL);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("x-api-key", apiKey);
+
+  StaticJsonDocument<256> doc;
+  doc["uid"] = uid;
+  doc["tag_type"] = "MIFARE";
+  doc["rssi"] = -45;
+
+  String body;
+  serializeJson(doc, body);
+
+  int httpResponseCode = http.POST(body);
+
+  if (httpResponseCode > 0) {
+    Serial.printf("[BACKEND] (%d) %s\n",
+                  httpResponseCode,
+                  http.getString().c_str());
+  } else {
+    Serial.printf("[BACKEND ERRO] %s\n",
+                  http.errorToString(httpResponseCode).c_str());
+  }
+
+  http.end();
+}
+
+// ============================================================
+// SETUP
+// ============================================================
 void setup() {
   Serial.begin(115200);
   delay(100);
 
   Serial.println("Conectando ao WiFi...");
-WiFi.begin(ssid, password);
+  WiFi.begin(ssid, password);
 
-unsigned long startAttemptTime = millis();
+  unsigned long startAttemptTime = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 20000) {
+    delay(500);
+    Serial.print(".");
+  }
 
-while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 20000) {
-  delay(500);
-  Serial.print(".");
-}
-
-if (WiFi.status() == WL_CONNECTED) {
-  Serial.println("\n WiFi conectado com sucesso!");
-  Serial.print("Endereço IP: ");
-  Serial.println(WiFi.localIP());
-} else {
-  Serial.println("\n Falha ao conectar ao WiFi.");
-  Serial.println("Verifique SSID e senha, ou teste com hotspot do celular.");
-}
-
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi conectado!");
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\nFalha ao conectar ao WiFi!");
+  }
 
   SinricProSwitch &mySwitch = SinricPro[DEVICE_ID];
   mySwitch.onPowerState(onPowerState);
@@ -93,16 +139,38 @@ if (WiFi.status() == WL_CONNECTED) {
 
   SPI.begin(SCK, MISO, MOSI, SS_PIN);
   mfrc522.PCD_Init();
-  Serial.println("Approach your RFID tag...");
+
+  Serial.println("Aproxime o cartão RFID...");
 
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
+
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
 }
 
+// ============================================================
+// LOOP PRINCIPAL
+// ============================================================
 void loop() {
   SinricPro.handle();
 
+  unsigned long now = millis();
+
+  // Buzzer alternando
+  if (!buzzerState && now - buzzerLast >= buzzerOffTime) {
+    digitalWrite(BUZZER_PIN, HIGH);
+    buzzerState = true;
+    buzzerLast = now;
+  } else if (buzzerState && now - buzzerLast >= buzzerOnTime) {
+    digitalWrite(BUZZER_PIN, LOW);
+    buzzerState = false;
+    buzzerLast = now;
+  }
+
+  // RFID
   if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
+
     String uidStr = "";
     for (byte i = 0; i < mfrc522.uid.size; i++) {
       if (mfrc522.uid.uidByte[i] < 0x10) uidStr += "0";
@@ -110,20 +178,27 @@ void loop() {
     }
     uidStr.toUpperCase();
 
-    unsigned long now = millis();
+    if (!validateUid(uidStr)) {
+      Serial.println("[ERRO] UID inválido detectado! Ignorando...");
+      return;
+    }
+
     if (uidStr != lastUid || (now - lastTrigger) > triggerDebounceMs) {
-      Serial.print("Tag detected: ");
+      Serial.print("[RFID] TAG: ");
       Serial.println(uidStr);
 
       lastUid = uidStr;
       lastTrigger = now;
 
+      // Envia evento para SinricPro
       SinricProSwitch &sw = SinricPro[DEVICE_ID];
-      bool sentOn = sw.sendPowerStateEvent(true);
-      if(sentOn) Serial.println("Event 'On' sent to SinricPro");
+      if (sw.sendPowerStateEvent(true))
+        Serial.println("[SINRIC] Evento enviado!");
 
+      // Envia ao backend
       sendToBackend(uidStr);
 
+      // LED por 10s
       digitalWrite(LED_PIN, HIGH);
       Serial.println("LED ON (10s)");
       delay(10000);
@@ -135,5 +210,5 @@ void loop() {
     mfrc522.PCD_StopCrypto1();
   }
 
-  delay(50);
+  delay(10);
 }
